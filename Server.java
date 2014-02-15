@@ -6,6 +6,11 @@ import java.io.*;
 public class Server{
     public static String requestPath;
     public static int statusCode;
+    public static String protocol = "HTTP/1.1";
+    public static int contentLength = 0;
+    public static String response = "";
+    public static String connectionStatus;
+    public static String extension;
 
     public static String checkRedirects(String filePath){
         try{
@@ -24,15 +29,39 @@ public class Server{
         }
         catch(Exception e){
         }
-    return null;
+        return null;
     }
 
     public static boolean checkFilePath(String filePath){
+
+        //add error handling --what if there is no "."
+        String[] tokens = filePath.split("\\.");
+        System.out.println(tokens[0]);
+
+        if (tokens[1].equals("html") || tokens[1].equals("htm")){
+            extension = "text/html";
+        }
+        else if (tokens[1].equals("txt")){
+            extension = "text/plain";
+        }
+        else if (tokens[1].equals("pdf")){
+            extension = "application/pdf";
+        }
+        else if (tokens[1].equals("png")){
+            extension = "image/png";
+        }
+        else if (tokens[1].equals("jpeg") || tokens[1].equals("jpg")){
+            extension = "image/jpeg";
+        }
+        else {
+            extension = "application/octet-stream";
+        }
+
+
         try{
             File requestFile = new File(filePath);
 
             if(requestFile.exists()){
-		System.out.println("REQUEST FILE EXISTSSSSSS");
                 requestPath = filePath;
                 statusCode = 200;
                 return true;
@@ -63,37 +92,56 @@ public class Server{
     }
 
 
+    public static void generateReponse(String filePath, PrintWriter out){
+        try{
+            //*** error is at requestFile trying to write the response back to the server before we close the connection
+            File responseFile = new File(requestPath);
+            Scanner responseScan = new Scanner(responseFile);
+
+            while(responseScan.hasNextLine()){
+                response += responseScan.nextLine();
+                contentLength += response.length();
+                System.out.println(response);
+            }
+
+        }
+        catch(Exception e){
+        }
+
+        java.util.Date date1 = new java.util.Date();
+        out.println(protocol + " " + statusCode + " OK\n"
+                + "Date: "+date1 + "\n"
+                + "Accept-Ranges: bytes\n"
+                + "Content-Length: "+contentLength+"\n"
+                + "Connection: " + connectionStatus + "\n"
+                + "Content-Type: "+ extension+"\r\n");
+
+        System.out.println(protocol + " " + statusCode + " OK\n"
+                + "Date: "+date1 + "\n"
+                + "Accept-Ranges: bytes\n"
+                + "Content-Length: "+contentLength+"\n"
+                + "Connection: " + connectionStatus + "\n"
+                + "Content-Type: "+ extension+"\r\n");
+
+        out.println(response);
+    }
+
     public static void processRequest(String request, PrintWriter out){
         String[] requestTokens = request.split(" ");
-        System.out.println(request);
+//        System.out.println(request);
+//        int index = requestTokens[2].indexOf("Host:");
+//        System.out.println(index);
+//        protocol = requestTokens[2].substring(0,index);
+
         if(requestTokens[0].equals("GET") || requestTokens[0].equals("HEAD")){
-	    //System.out.println("in GET/HEAD statement");
+            //System.out.println("in GET/HEAD statement");
             java.util.Date date1 = new java.util.Date();
             //System.out.println("REQUEST TOCKEN "+requestTokens[1]);
+
             if(checkFilePath(requestTokens[1].substring(1))){
-		//System.out.println(requestPath);
-                out.println("HTTP//1.1 " + statusCode + " OK\n"
-                        + date1 + "\n"
-                        + "Accept-Ranges: bytes\n"
-                        + "Content-Length: 100\n"
-                        + "Connection: close\n"
-                        + "Content-Type: text/html\r\n");
+                generateReponse(requestPath, out);
+            }
 
-                try{
-                //*** error is at requestFile trying to write the response back to the server before we close the connection
-                File responseFile = new File(requestPath);
-                Scanner responseScan = new Scanner(responseFile);
-
-                while(responseScan.hasNextLine()){
-                    String response = responseScan.nextLine();
-                    System.out.println(response);
-                    out.println(response);
-                }
-
-                }
-                catch(Exception e){
-                }
-                }
         }
         else{
             statusCode = 403;
@@ -102,7 +150,8 @@ public class Server{
     }
 
     public static void main(String[] args){
-
+        //right now dealing with non persistent connections so connection status is close
+        connectionStatus = "close";
         //checking for the port syntax
         if((args.length != 1) || (!args[0].contains("--port="))){
             System.out.println("Specify the command in \"java Server \'--port=port\' \" format");
@@ -133,7 +182,7 @@ public class Server{
             String requestLine = "";
             while(!(requestLine = in.readLine()).equals("")){
                 request = request + requestLine;
-               // System.out.println(request);
+                // System.out.println(request);
             }
 
             //parse the request to check the type. process only GET and HEAD requests
